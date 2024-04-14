@@ -1,0 +1,16 @@
+__MACOSX/
+_MACOSX/
+._.DS_Store
+.DS_Store
+.build/
+/**/build
+.build_Debug/
+.build_Release/
+.metadata/
+Intermediate/
+*.d
+*.o
+*.plist
+Log/
+Debug/
+Release/
