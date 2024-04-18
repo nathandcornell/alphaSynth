@@ -3,6 +3,7 @@
 
 using namespace daisy;
 using namespace daisysp;
+using namespace std;
 
 // Declare a DaisySeed object called hardware, a volume envelope, a midi
 // handler, and an oscillator
@@ -14,16 +15,21 @@ Oscillator      osc;
 
 float DEFAULT_VOLUME = 0.2f;
 int   CHANNELS = 2;
+float DEFAULT_GAIN = 0.9f;
 
 // Track if a note should be playing:
 bool  gate_open = false;
 float velocity = 0.0;
 bool led_state = false;
 
+float SaturatedSignal(float signal, float gain = DEFAULT_GAIN) {
+    return tanh(signal * gain);
+}
+
 void AudioCallback(AudioHandle::InputBuffer  in,
                    AudioHandle::OutputBuffer out,
                    size_t size) {
-    float signal, env_out;
+    float signal, env_out, saturated_signal;
 
     // Fill the buffers with oscillator signals
     for (size_t i = 0; i < size; i++) {
@@ -31,9 +37,10 @@ void AudioCallback(AudioHandle::InputBuffer  in,
         osc.SetAmp(env_out);
 
         signal = osc.Process() * DEFAULT_VOLUME * velocity;
+        saturated_signal = SaturatedSignal(signal);
 
         for (int j = 0; j < CHANNELS; j++) {
-            out[j][i] = signal;
+            out[j][i] = saturated_signal;
         }
     }
 
@@ -60,7 +67,6 @@ void MidiCallback(MidiEvent event) {
                 }
             }
             break;
-
         case NoteOff:
             {
                 // Close the gate
@@ -91,7 +97,7 @@ int main(void) {
 
     // Initialize the oscillator
     osc.Init(hardware.AudioSampleRate());
-    osc.SetWaveform(osc.WAVE_SAW);
+    osc.SetWaveform(osc.WAVE_SIN);
     osc.SetAmp(0.25f); // default
     osc.SetFreq(440.0f); // default
 
