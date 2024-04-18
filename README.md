@@ -41,7 +41,7 @@ To build the synth, just run `make`
 
 ## Deploying
 
-To upload to your Daisy Seed, first put it into bootloader mode, then run
+To upload to your Daisy Seed, first put it into [bootloader mode](https://github.com/electro-smith/DaisyWiki/wiki/1.-Setting-Up-Your-Development-Environment#4a-flashing-the-daisy-via-usb), then run
 
 ```sh
 make program-dfu
