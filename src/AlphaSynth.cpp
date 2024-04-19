@@ -2,6 +2,7 @@
 #include "daisysp.h"
 
 using namespace daisy;
+using namespace daisy::seed;
 using namespace daisysp;
 using namespace std;
 
@@ -21,6 +22,7 @@ float DEFAULT_GAIN = 0.9f;
 bool  gateOpen = false;
 float velocity = 0.0;
 bool ledState = false;
+float volume = DEFAULT_VOLUME;
 
 float SaturatedSignal(float signal, float gain = DEFAULT_GAIN) {
     return tanh(signal * gain);
@@ -36,7 +38,7 @@ void AudioCallback(AudioHandle::InputBuffer  in,
         envOut = env.Process(gateOpen);
         osc.SetAmp(envOut);
 
-        signal = osc.Process() * DEFAULT_VOLUME * velocity;
+        signal = osc.Process() * volume * velocity;
         saturatedSignal = SaturatedSignal(signal);
 
         for (int j = 0; j < CHANNELS; j++) {
@@ -108,6 +110,16 @@ int main(void) {
     env.SetTime(ADSR_SEG_RELEASE, .25);
     env.SetSustainLevel(.7);
 
+    // Initialize the volume knob
+    AdcChannelConfig adcConfig;
+    // Configure pin 21 as an ADC input
+    adcConfig.InitSingle(A0);
+
+    //Initialize the adc with the config we just made
+    hardware.adc.Init(&adcConfig, 1);
+    //Start reading values
+    hardware.adc.Start();
+
     // Start the audio callback
     hardware.StartAudio(AudioCallback);
 
@@ -116,6 +128,7 @@ int main(void) {
         // Start listening for midi notes
         midi.Listen();
         hardware.SetLed(ledState);
+        volume = hardware.adc.GetFloat(0);
 
         // If midi events occur:
         while(midi.HasEvents()) {
