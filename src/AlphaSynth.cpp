@@ -18,9 +18,9 @@ int   CHANNELS = 2;
 float DEFAULT_GAIN = 0.9f;
 
 // Track if a note should be playing:
-bool  gate_open = false;
+bool  gateOpen = false;
 float velocity = 0.0;
-bool led_state = false;
+bool ledState = false;
 
 float SaturatedSignal(float signal, float gain = DEFAULT_GAIN) {
     return tanh(signal * gain);
@@ -29,18 +29,18 @@ float SaturatedSignal(float signal, float gain = DEFAULT_GAIN) {
 void AudioCallback(AudioHandle::InputBuffer  in,
                    AudioHandle::OutputBuffer out,
                    size_t size) {
-    float signal, env_out, saturated_signal;
+    float signal, envOut, saturatedSignal;
 
     // Fill the buffers with oscillator signals
     for (size_t i = 0; i < size; i++) {
-        env_out = env.Process(gate_open);
-        osc.SetAmp(env_out);
+        envOut = env.Process(gateOpen);
+        osc.SetAmp(envOut);
 
         signal = osc.Process() * DEFAULT_VOLUME * velocity;
-        saturated_signal = SaturatedSignal(signal);
+        saturatedSignal = SaturatedSignal(signal);
 
         for (int j = 0; j < CHANNELS; j++) {
-            out[j][i] = saturated_signal;
+            out[j][i] = saturatedSignal;
         }
     }
 
@@ -52,26 +52,26 @@ void MidiCallback(MidiEvent event) {
             {
                 // Apply the value of the midi note to the oscillator
                 // frequency
-                auto note_event = event.AsNoteOn();
-                float note_velocity = note_event.velocity;
+                auto noteEvent = event.AsNoteOn();
+                float noteVelocity = noteEvent.velocity;
 
-                if(note_velocity > 0) {
-                    float freq = mtof(note_event.note);
+                if(noteVelocity > 0) {
+                    float freq = mtof(noteEvent.note);
                     osc.SetFreq(freq);
 
-                    velocity = note_velocity / 100;
+                    velocity = noteVelocity / 100;
 
                     // Open the gate
-                    gate_open = true;
-                    led_state = true;
+                    gateOpen = true;
+                    ledState = true;
                 }
             }
             break;
         case NoteOff:
             {
                 // Close the gate
-                gate_open = false;
-                led_state = false;
+                gateOpen = false;
+                ledState = false;
             }
             break;
 
@@ -85,15 +85,15 @@ int main(void) {
     hardware.Init();
 
     // Initialize a midi configuration
-    MidiUsbHandler::Config midi_cfg;
+    MidiUsbHandler::Config midiConfig;
     // Configure the transport to use the internal midi implementation (as 
     // opposed to the peripheral config using pins 2-15)
-    midi_cfg.transport_config.periph = MidiUsbTransport::Config::INTERNAL;
+    midiConfig.transport_config.periph = MidiUsbTransport::Config::INTERNAL;
     // Alternate external (peripheral) config:
-    // midi_cfg.transport_config.periph = MidiUsbTransport::Config::EXTERNAL
+    // midiConfig.transport_config.periph = MidiUsbTransport::Config::EXTERNAL
 
     // Initialize Midi using this configuration
-    midi.Init(midi_cfg);
+    midi.Init(midiConfig);
 
     // Initialize the oscillator
     osc.Init(hardware.AudioSampleRate());
@@ -115,7 +115,7 @@ int main(void) {
     while(true) {
         // Start listening for midi notes
         midi.Listen();
-        hardware.SetLed(led_state);
+        hardware.SetLed(ledState);
 
         // If midi events occur:
         while(midi.HasEvents()) {
