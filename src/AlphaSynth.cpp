@@ -15,14 +15,30 @@ MidiUsbHandler  midi;
 Oscillator      osc;
 
 float DEFAULT_VOLUME = 0.2f;
+float DEFAULT_ATTACK = 0.1f;
+float DEFAULT_DECAY = 0.25f;
+float DEFAULT_SUSTAIN = 0.7f;
+float DEFAULT_RELEASE = 0.25f;
 int   CHANNELS = 2;
 float DEFAULT_GAIN = 0.9f;
+int ADC_CHANNEL_QTY = 5;
 
 // Track if a note should be playing:
 bool  gateOpen = false;
 float velocity = 0.0;
 bool ledState = false;
-float volume = DEFAULT_VOLUME;
+float volumeVal  = DEFAULT_VOLUME;
+float attackVal  = DEFAULT_ATTACK;
+float decayVal   = DEFAULT_DECAY;
+float sustainVal = DEFAULT_SUSTAIN;
+float releaseVal = DEFAULT_RELEASE;
+enum AdcChannels {
+    volumeLevel  = 0,
+    attackTime  = 1,
+    decayTime   = 2,
+    sustainLevel = 3,
+    releaseTime = 4,
+};
 
 float SaturatedSignal(float signal, float gain = DEFAULT_GAIN) {
     return tanh(signal * gain);
@@ -38,7 +54,7 @@ void AudioCallback(AudioHandle::InputBuffer  in,
         envOut = env.Process(gateOpen);
         osc.SetAmp(envOut);
 
-        signal = osc.Process() * volume * velocity;
+        signal = osc.Process() * volumeVal * velocity;
         saturatedSignal = SaturatedSignal(signal);
 
         for (int j = 0; j < CHANNELS; j++) {
@@ -105,18 +121,22 @@ int main(void) {
 
     // Initialize the envelope
     env.Init(hardware.AudioSampleRate());
-    env.SetTime(ADSR_SEG_ATTACK, .1);
-    env.SetTime(ADSR_SEG_DECAY, .25);
-    env.SetTime(ADSR_SEG_RELEASE, .25);
-    env.SetSustainLevel(.7);
+    env.SetTime(ADSR_SEG_ATTACK, DEFAULT_ATTACK);
+    env.SetTime(ADSR_SEG_DECAY, DEFAULT_DECAY);
+    env.SetSustainLevel(DEFAULT_SUSTAIN);
+    env.SetTime(ADSR_SEG_RELEASE, DEFAULT_RELEASE);
 
     // Initialize the volume knob
-    AdcChannelConfig adcConfig;
+    AdcChannelConfig adcConfig[ADC_CHANNEL_QTY];
     // Configure pin 21 as an ADC input
-    adcConfig.InitSingle(A0);
+    adcConfig[volumeLevel].InitSingle(A0);
+    adcConfig[attackTime].InitSingle(A1);
+    adcConfig[decayTime].InitSingle(A2);
+    adcConfig[sustainLevel].InitSingle(A3);
+    adcConfig[releaseTime].InitSingle(A4);
 
     //Initialize the adc with the config we just made
-    hardware.adc.Init(&adcConfig, 1);
+    hardware.adc.Init(adcConfig, ADC_CHANNEL_QTY);
     //Start reading values
     hardware.adc.Start();
 
@@ -128,7 +148,11 @@ int main(void) {
         // Start listening for midi notes
         midi.Listen();
         hardware.SetLed(ledState);
-        volume = hardware.adc.GetFloat(0);
+        volumeVal  = hardware.adc.GetFloat(volumeLevel);
+        attackVal  = hardware.adc.GetFloat(attackTime);
+        decayVal   = hardware.adc.GetFloat(decayTime);
+        sustainVal = hardware.adc.GetFloat(sustainLevel);
+        releaseVal = hardware.adc.GetFloat(releaseTime);
 
         // If midi events occur:
         while(midi.HasEvents()) {
