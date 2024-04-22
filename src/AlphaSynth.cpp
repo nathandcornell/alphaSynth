@@ -1,5 +1,7 @@
 #include "daisy_seed.h"
 #include "daisysp.h"
+#include "AmpSettings.h"
+#include "EnvelopeSettings.h"
 
 using namespace daisy;
 using namespace daisy::seed;
@@ -14,24 +16,19 @@ Adsr            env;
 MidiUsbHandler  midi;
 Oscillator      osc;
 
-float DEFAULT_VOLUME = 0.2f;
-float DEFAULT_ATTACK = 0.1f;
-float DEFAULT_DECAY = 0.25f;
-float DEFAULT_SUSTAIN = 0.7f;
-float DEFAULT_RELEASE = 0.25f;
+// Amplifier settings
+AmpSettings ampSettings;
+
+// Envelope settings
+EnvelopeSettings envSettings;
+
 int   CHANNELS = 2;
-float DEFAULT_GAIN = 0.9f;
 int ADC_CHANNEL_QTY = 5;
 
 // Track if a note should be playing:
 bool  gateOpen = false;
-float velocity = 0.0;
 bool ledState = false;
-float volumeVal  = DEFAULT_VOLUME;
-float attackVal  = DEFAULT_ATTACK;
-float decayVal   = DEFAULT_DECAY;
-float sustainVal = DEFAULT_SUSTAIN;
-float releaseVal = DEFAULT_RELEASE;
+float velocity = 0.0;
 enum AdcChannels {
     volumeLevel  = 0,
     attackTime  = 1,
@@ -40,8 +37,8 @@ enum AdcChannels {
     releaseTime = 4,
 };
 
-float SaturatedSignal(float signal, float gain = DEFAULT_GAIN) {
-    return tanh(signal * gain);
+float SaturatedSignal(float signal) {
+    return tanh(signal * ampSettings.GetGain());
 }
 
 void AudioCallback(AudioHandle::InputBuffer  in,
@@ -54,7 +51,7 @@ void AudioCallback(AudioHandle::InputBuffer  in,
         envOut = env.Process(gateOpen);
         osc.SetAmp(envOut);
 
-        signal = osc.Process() * volumeVal * velocity;
+        signal = osc.Process() * ampSettings.GetVolume() * velocity;
         saturatedSignal = SaturatedSignal(signal);
 
         for (int j = 0; j < CHANNELS; j++) {
@@ -99,8 +96,15 @@ void MidiCallback(MidiEvent event) {
 }
 
 int main(void) {
+    // Initialize the hardware
     hardware.Configure();
     hardware.Init();
+
+    // Initialize the ADSR settings:
+    envSettings.Init();
+
+    // Initialize the Amp settings:
+    ampSettings.Init();
 
     // Initialize a midi configuration
     MidiUsbHandler::Config midiConfig;
@@ -121,10 +125,10 @@ int main(void) {
 
     // Initialize the envelope
     env.Init(hardware.AudioSampleRate());
-    env.SetTime(ADSR_SEG_ATTACK, DEFAULT_ATTACK);
-    env.SetTime(ADSR_SEG_DECAY, DEFAULT_DECAY);
-    env.SetSustainLevel(DEFAULT_SUSTAIN);
-    env.SetTime(ADSR_SEG_RELEASE, DEFAULT_RELEASE);
+    env.SetTime(ADSR_SEG_ATTACK, envSettings.GetAttack());
+    env.SetTime(ADSR_SEG_DECAY, envSettings.GetDecay());
+    env.SetSustainLevel(envSettings.GetSustain());
+    env.SetTime(ADSR_SEG_RELEASE, envSettings.GetRelease());
 
     // Initialize the volume knob
     AdcChannelConfig adcConfig[ADC_CHANNEL_QTY];
@@ -148,11 +152,11 @@ int main(void) {
         // Start listening for midi notes
         midi.Listen();
         hardware.SetLed(ledState);
-        volumeVal  = hardware.adc.GetFloat(volumeLevel);
-        attackVal  = hardware.adc.GetFloat(attackTime);
-        decayVal   = hardware.adc.GetFloat(decayTime);
-        sustainVal = hardware.adc.GetFloat(sustainLevel);
-        releaseVal = hardware.adc.GetFloat(releaseTime);
+        ampSettings.SetVolume(hardware.adc.GetFloat(volumeLevel));
+        envSettings.SetAttack(hardware.adc.GetFloat(attackTime));
+        envSettings.SetDecay(hardware.adc.GetFloat(decayTime));
+        envSettings.SetSustain(hardware.adc.GetFloat(sustainLevel));
+        envSettings.SetRelease(hardware.adc.GetFloat(releaseTime));
 
         // If midi events occur:
         while(midi.HasEvents()) {

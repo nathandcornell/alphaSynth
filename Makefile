@@ -2,7 +2,9 @@
 TARGET = AlphaSynth
 
 # Sources
-CPP_SOURCES = src/AlphaSynth.cpp
+CPP_SOURCES += src/AmpSettings.cpp
+CPP_SOURCES += src/EnvelopeSettings.cpp
+CPP_SOURCES += src/AlphaSynth.cpp
 
 # Library Locations
 LIBDAISY_DIR = lib/libDaisy
