@@ -22,12 +22,12 @@ AmpSettings ampSettings;
 // Envelope settings
 EnvelopeSettings envSettings;
 
-int   CHANNELS = 2;
+int        CHANNELS = 2;
 int ADC_CHANNEL_QTY = 5;
 
 // Track if a note should be playing:
 bool  gateOpen = false;
-bool ledState = false;
+bool  ledState = false;
 float velocity = 0.0;
 enum AdcChannels {
     volumeLevel  = 0,
@@ -61,6 +61,14 @@ void AudioCallback(AudioHandle::InputBuffer  in,
 
 }
 
+void UpdateEnvelope() {
+  // Adjust ADSR settings as needed
+  env.SetTime(ADSR_SEG_ATTACK, envSettings.GetAttack());
+  env.SetTime(ADSR_SEG_DECAY, envSettings.GetDecay());
+  env.SetSustainLevel(envSettings.GetSustain());
+  env.SetTime(ADSR_SEG_RELEASE, envSettings.GetRelease());
+}
+
 void MidiCallback(MidiEvent event) {
     switch(event.type) {
         case NoteOn:
@@ -73,8 +81,10 @@ void MidiCallback(MidiEvent event) {
                 if(noteVelocity > 0) {
                     float freq = mtof(noteEvent.note);
                     osc.SetFreq(freq);
-
                     velocity = noteVelocity / 100;
+
+                    // Apply envelope changes
+                    UpdateEnvelope();
 
                     // Open the gate
                     gateOpen = true;
@@ -153,10 +163,10 @@ int main(void) {
         midi.Listen();
         hardware.SetLed(ledState);
         ampSettings.SetVolume(hardware.adc.GetFloat(volumeLevel));
-        envSettings.SetAttack(hardware.adc.GetFloat(attackTime));
-        envSettings.SetDecay(hardware.adc.GetFloat(decayTime));
-        envSettings.SetSustain(hardware.adc.GetFloat(sustainLevel));
-        envSettings.SetRelease(hardware.adc.GetFloat(releaseTime));
+        envSettings.SetAttack(fmap(hardware.adc.GetFloat(attackTime), 0.01, 10));
+        envSettings.SetDecay(fmap(hardware.adc.GetFloat(decayTime), 0.01, 10));
+        envSettings.SetSustain(fmap(hardware.adc.GetFloat(sustainLevel), 0.1, 1));
+        envSettings.SetRelease(fmap(hardware.adc.GetFloat(releaseTime), 0.1, 20));
 
         // If midi events occur:
         while(midi.HasEvents()) {
