@@ -105,6 +105,57 @@ void MidiCallback(MidiEvent event) {
     }
 }
 
+void InitializeMidi() {
+    MidiUsbHandler::Config midiConfig;
+    // Configure the transport to use the internal midi implementation (as 
+    // opposed to the peripheral config using pins 2-15)
+    midiConfig.transport_config.periph = MidiUsbTransport::Config::INTERNAL;
+    // Alternate external (peripheral) config:
+    // midiConfig.transport_config.periph = MidiUsbTransport::Config::EXTERNAL
+
+    // Initialize Midi using this configuration
+    midi.Init(midiConfig);
+}
+
+void InitializeOscillator() {
+    osc.Init(hardware.AudioSampleRate());
+    osc.SetWaveform(osc.WAVE_SIN);
+    osc.SetAmp(0.25f); // default
+    osc.SetFreq(440.0f); // default
+}
+
+void InitializeEnvelope() {
+    env.Init(hardware.AudioSampleRate());
+    env.SetTime(ADSR_SEG_ATTACK, envSettings.GetAttack());
+    env.SetTime(ADSR_SEG_DECAY, envSettings.GetDecay());
+    env.SetSustainLevel(envSettings.GetSustain());
+    env.SetTime(ADSR_SEG_RELEASE, envSettings.GetRelease());
+}
+
+void InitializeADC() {
+    // Initialize the knobs
+    AdcChannelConfig adcConfig[ADC_CHANNEL_QTY];
+    // Configure pins 21-25 as ADC inputs
+    adcConfig[volumeLevel].InitSingle(A0);
+    adcConfig[attackTime].InitSingle(A1);
+    adcConfig[decayTime].InitSingle(A2);
+    adcConfig[sustainLevel].InitSingle(A3);
+    adcConfig[releaseTime].InitSingle(A4);
+
+    //Initialize the adc with the config we just made
+    hardware.adc.Init(adcConfig, ADC_CHANNEL_QTY);
+    //Start reading values
+    hardware.adc.Start();
+}
+
+void ApplyADCUpdates() {
+    ampSettings.SetVolume(hardware.adc.GetFloat(volumeLevel));
+    envSettings.SetAttack(fmap(hardware.adc.GetFloat(attackTime), 0.01, 10));
+    envSettings.SetDecay(fmap(hardware.adc.GetFloat(decayTime), 0.01, 10));
+    envSettings.SetSustain(fmap(hardware.adc.GetFloat(sustainLevel), 0.1, 1));
+    envSettings.SetRelease(fmap(hardware.adc.GetFloat(releaseTime), 0.1, 20));
+}
+
 int main(void) {
     // Initialize the hardware
     hardware.Configure();
@@ -116,43 +167,10 @@ int main(void) {
     // Initialize the Amp settings:
     ampSettings.Init();
 
-    // Initialize a midi configuration
-    MidiUsbHandler::Config midiConfig;
-    // Configure the transport to use the internal midi implementation (as 
-    // opposed to the peripheral config using pins 2-15)
-    midiConfig.transport_config.periph = MidiUsbTransport::Config::INTERNAL;
-    // Alternate external (peripheral) config:
-    // midiConfig.transport_config.periph = MidiUsbTransport::Config::EXTERNAL
-
-    // Initialize Midi using this configuration
-    midi.Init(midiConfig);
-
-    // Initialize the oscillator
-    osc.Init(hardware.AudioSampleRate());
-    osc.SetWaveform(osc.WAVE_SIN);
-    osc.SetAmp(0.25f); // default
-    osc.SetFreq(440.0f); // default
-
-    // Initialize the envelope
-    env.Init(hardware.AudioSampleRate());
-    env.SetTime(ADSR_SEG_ATTACK, envSettings.GetAttack());
-    env.SetTime(ADSR_SEG_DECAY, envSettings.GetDecay());
-    env.SetSustainLevel(envSettings.GetSustain());
-    env.SetTime(ADSR_SEG_RELEASE, envSettings.GetRelease());
-
-    // Initialize the volume knob
-    AdcChannelConfig adcConfig[ADC_CHANNEL_QTY];
-    // Configure pin 21 as an ADC input
-    adcConfig[volumeLevel].InitSingle(A0);
-    adcConfig[attackTime].InitSingle(A1);
-    adcConfig[decayTime].InitSingle(A2);
-    adcConfig[sustainLevel].InitSingle(A3);
-    adcConfig[releaseTime].InitSingle(A4);
-
-    //Initialize the adc with the config we just made
-    hardware.adc.Init(adcConfig, ADC_CHANNEL_QTY);
-    //Start reading values
-    hardware.adc.Start();
+    InitializeMidi();
+    InitializeOscillator();
+    InitializeEnvelope();
+    InitializeADC();
 
     // Start the audio callback
     hardware.StartAudio(AudioCallback);
@@ -162,11 +180,8 @@ int main(void) {
         // Start listening for midi notes
         midi.Listen();
         hardware.SetLed(ledState);
-        ampSettings.SetVolume(hardware.adc.GetFloat(volumeLevel));
-        envSettings.SetAttack(fmap(hardware.adc.GetFloat(attackTime), 0.01, 10));
-        envSettings.SetDecay(fmap(hardware.adc.GetFloat(decayTime), 0.01, 10));
-        envSettings.SetSustain(fmap(hardware.adc.GetFloat(sustainLevel), 0.1, 1));
-        envSettings.SetRelease(fmap(hardware.adc.GetFloat(releaseTime), 0.1, 20));
+
+        ApplyADCUpdates();
 
         // If midi events occur:
         while(midi.HasEvents()) {
